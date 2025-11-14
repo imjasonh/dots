@@ -35,12 +35,15 @@ func quantizeGrayscale(r, g, b uint8) uint8 {
 	if avg < 8 {
 		return 16 // Black from RGB cube
 	}
-	if avg > 238 {
+	if avg >= 238 {
 		return 231 // White from RGB cube
 	}
 
-	// Map [8, 238] to [0, 23]
-	step := (avg - 8) * 24 / 230
+	// Map [8, 237] to [0, 23]
+	step := (avg - 8) * 24 / 229
+	if step > 23 {
+		step = 23
+	}
 	return 232 + uint8(step)
 }
 

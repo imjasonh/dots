@@ -94,6 +94,18 @@ func TestParseHex(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			desc:     "near-white (eee)",
+			hex:      "eee",
+			wantANSI: 231, // Should map to white, not black
+			wantErr:  false,
+		},
+		{
+			desc:     "near-white (eeeeee)",
+			hex:      "eeeeee",
+			wantANSI: 231, // Should map to white, not black
+			wantErr:  false,
+		},
+		{
 			desc:    "invalid length (too short)",
 			hex:     "ff",
 			wantErr: true,
