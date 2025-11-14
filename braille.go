@@ -30,6 +30,7 @@ type Options struct {
 	Threshold       uint8  // Brightness threshold (0-255), default 20
 	NoColor         bool   // Disable ANSI color output
 	BackgroundColor *uint8 // Background color for ANSI output (nil = no background)
+	Frame           bool   // Draw a white ASCII frame around the picture
 }
 
 // CalculateDimensions calculates output dimensions maintaining aspect ratio.
@@ -114,11 +115,27 @@ func Convert(img image.Image, opts Options) []string {
 		// Get terminal dimensions as constraints
 		termWidth, termHeight := getTerminalSize()
 
+		// If frame is enabled, reduce available space by 2 (1 on each side)
+		if opts.Frame {
+			termWidth -= 2
+			termHeight -= 2
+		}
+
 		// CalculateDimensions handles all cases:
 		// - Both zero: uses terminal as constraint with aspect ratio
 		// - Only width: calculates height from aspect
 		// - Only height: calculates width from aspect
 		opts.Width, opts.Height = CalculateDimensions(imgWidth, imgHeight, opts.Width, opts.Height, termWidth, termHeight)
+	} else if opts.Frame {
+		// If dimensions were explicitly specified, reduce them for the frame
+		opts.Width -= 2
+		opts.Height -= 2
+		if opts.Width < 1 {
+			opts.Width = 1
+		}
+		if opts.Height < 1 {
+			opts.Height = 1
+		}
 	}
 
 	// Step 1: Spatial quantization - resize to target dimensions
@@ -128,7 +145,7 @@ func Convert(img image.Image, opts Options) []string {
 	resized := resize(img, targetWidth, targetHeight)
 
 	// Step 2 & 3: Brightness and color quantization
-	lines := make([]string, opts.Height)
+	brailleLines := make([]string, opts.Height)
 
 	for row := 0; row < opts.Height; row++ {
 		line := ""
@@ -152,10 +169,15 @@ func Convert(img image.Image, opts Options) []string {
 				line += string(char)
 			}
 		}
-		lines[row] = line
+		brailleLines[row] = line
 	}
 
-	return lines
+	// Add frame if requested
+	if opts.Frame {
+		return addFrame(brailleLines, opts.NoColor)
+	}
+
+	return brailleLines
 }
 
 // resize scales an image to the target dimensions using high-quality interpolation.
@@ -247,4 +269,72 @@ func ansiFgBgColor(fgCode, bgCode uint8) string {
 // ansiReset returns the ANSI escape sequence to reset colors.
 func ansiReset() string {
 	return "\x1b[0m"
+}
+
+// addFrame wraps the braille lines with a white ASCII frame.
+func addFrame(lines []string, noColor bool) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+
+	// Calculate the width of the content (without ANSI codes if present)
+	width := 0
+	if !noColor {
+		// Count visible characters by stripping ANSI codes
+		width = visibleWidth(lines[0])
+	} else {
+		width = len(lines[0])
+	}
+
+	// White color code (for frame)
+	whiteColor := "\x1b[38;5;15m"
+	reset := ""
+	if !noColor {
+		reset = ansiReset()
+	} else {
+		whiteColor = ""
+	}
+
+	// Build the frame
+	result := make([]string, len(lines)+2)
+
+	// Top border
+	result[0] = whiteColor + "┌" + repeatString("─", width) + "┐" + reset
+
+	// Content with side borders
+	for i, line := range lines {
+		result[i+1] = whiteColor + "│" + reset + line + whiteColor + "│" + reset
+	}
+
+	// Bottom border
+	result[len(result)-1] = whiteColor + "└" + repeatString("─", width) + "┘" + reset
+
+	return result
+}
+
+// visibleWidth counts the visible characters in a string, ignoring ANSI escape codes.
+func visibleWidth(s string) int {
+	width := 0
+	inEscape := false
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+		} else if inEscape {
+			if r == 'm' {
+				inEscape = false
+			}
+		} else {
+			width++
+		}
+	}
+	return width
+}
+
+// repeatString repeats a string n times.
+func repeatString(s string, n int) string {
+	result := ""
+	for range n {
+		result += s
+	}
+	return result
 }

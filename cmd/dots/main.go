@@ -22,6 +22,7 @@ func main() {
 		background = flag.String("background", "", "Background color as hex (e.g., 'ff0000' for red, enables ANSI background)")
 		threshold  = flag.Int("threshold", 20, "Brightness threshold (0-255)")
 		t          = flag.Int("t", 0, "Short form of -threshold")
+		frame      = flag.Bool("frame", false, "Draw a white ASCII frame around the picture")
 	)
 
 	flag.Parse()
@@ -83,6 +84,7 @@ func main() {
 		Threshold:       uint8(*threshold),
 		NoColor:         *noColor,
 		BackgroundColor: bgColor,
+		Frame:           *frame,
 	})
 
 	// Print output
