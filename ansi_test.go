@@ -2,7 +2,6 @@ package dots
 
 import (
 	"fmt"
-	"image/color"
 	"image/png"
 	"os"
 	"testing"
@@ -40,13 +39,16 @@ func TestANSIColorFunctions(t *testing.T) {
 }
 
 func TestBackgroundOption(t *testing.T) {
-	// Create a simple red image using existing helper
-	img := createTestImage(t, "test_red.png", 8, 16, color.RGBA{R: 255, G: 0, B: 0, A: 255})
-
-	// Load it back
-	f, _ := os.Open(img)
-	defer f.Close()
-	decoded, _ := png.Decode(f)
+	// Load existing red image from testdata
+	f, err := os.Open("testdata/red.png")
+	if err != nil {
+		t.Fatalf("failed to open test image: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	decoded, err := png.Decode(f)
+	if err != nil {
+		t.Fatalf("failed to decode test image: %v", err)
+	}
 
 	// Without background
 	linesNoBackground := Convert(decoded, Options{
@@ -95,10 +97,15 @@ func containsSubstring(s, substr string) bool {
 
 func TestBackgroundColorQuantization(t *testing.T) {
 	// Test that different background colors are properly quantized and applied
-	img := createTestImage(t, "test_white.png", 8, 16, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-	f, _ := os.Open(img)
-	defer f.Close()
-	decoded, _ := png.Decode(f)
+	f, err := os.Open("testdata/white.png")
+	if err != nil {
+		t.Fatalf("failed to open test image: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	decoded, err := png.Decode(f)
+	if err != nil {
+		t.Fatalf("failed to decode test image: %v", err)
+	}
 
 	testCases := []struct {
 		desc    string
@@ -171,10 +178,15 @@ func TestBackgroundColorQuantization(t *testing.T) {
 
 func TestBackgroundColorNil(t *testing.T) {
 	// Test that nil background doesn't add background codes
-	img := createTestImage(t, "test_color.png", 8, 16, color.RGBA{R: 128, G: 64, B: 200, A: 255})
-	f, _ := os.Open(img)
-	defer f.Close()
-	decoded, _ := png.Decode(f)
+	f, err := os.Open("testdata/purple.png")
+	if err != nil {
+		t.Fatalf("failed to open test image: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	decoded, err := png.Decode(f)
+	if err != nil {
+		t.Fatalf("failed to decode test image: %v", err)
+	}
 
 	lines := Convert(decoded, Options{
 		Width:           2,

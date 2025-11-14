@@ -8,83 +8,6 @@ import (
 	"testing"
 )
 
-// createTestImage creates a simple test image and saves it to testdata.
-func createTestImage(t *testing.T, name string, width, height int, fillColor color.Color) string {
-	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			img.Set(x, y, fillColor)
-		}
-	}
-
-	path := "testdata/" + name
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("failed to create test image: %v", err)
-	}
-	defer f.Close()
-
-	if err := png.Encode(f, img); err != nil {
-		t.Fatalf("failed to encode test image: %v", err)
-	}
-
-	return path
-}
-
-// createCheckerboard creates a checkerboard pattern test image.
-func createCheckerboard(t *testing.T, name string, size int) string {
-	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
-			if (x/4+y/4)%2 == 0 {
-				img.Set(x, y, color.White)
-			} else {
-				img.Set(x, y, color.Black)
-			}
-		}
-	}
-
-	path := "testdata/" + name
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("failed to create test image: %v", err)
-	}
-	defer f.Close()
-
-	if err := png.Encode(f, img); err != nil {
-		t.Fatalf("failed to encode test image: %v", err)
-	}
-
-	return path
-}
-
-// createGradient creates a horizontal gradient test image.
-func createGradient(t *testing.T, name string, width, height int) string {
-	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			brightness := uint8(x * 255 / width)
-			img.Set(x, y, color.Gray{Y: brightness})
-		}
-	}
-
-	path := "testdata/" + name
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("failed to create test image: %v", err)
-	}
-	defer f.Close()
-
-	if err := png.Encode(f, img); err != nil {
-		t.Fatalf("failed to encode test image: %v", err)
-	}
-
-	return path
-}
-
 func TestBlockToBraille(t *testing.T) {
 	for _, tt := range []struct {
 		desc      string
@@ -173,13 +96,6 @@ func TestQuantizeRGB(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
-	// Create test images
-	_ = createTestImage(t, "white.png", 8, 16, color.White)
-	_ = createTestImage(t, "black.png", 8, 16, color.Black)
-	_ = createCheckerboard(t, "checkerboard.png", 16)
-	_ = createGradient(t, "gradient.png", 64, 16)
-	_ = createTestImage(t, "red.png", 8, 16, color.RGBA{R: 255, G: 0, B: 0, A: 255})
-
 	for _, tt := range []struct {
 		desc     string
 		imgPath  string
@@ -257,7 +173,7 @@ func TestConvert(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to open test image: %v", err)
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 
 			img, err := png.Decode(f)
 			if err != nil {
