@@ -8,7 +8,13 @@ Convert images to braille art in the terminal with ANSI colors.
 $ dots -w 40 testdata/rainbow_gradient.png
 ```
 
-![dots](dots.png)
+<img width=30% src=dots.png>
+
+```
+$ go run ./cmd/dots -w 80 -threshold 115 avatar.jpeg
+```
+
+<img width=60% src=avatar.png>
 
 ## Install
 
