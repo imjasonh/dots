@@ -1,4 +1,4 @@
-package braille
+package dots
 
 import "math"
 

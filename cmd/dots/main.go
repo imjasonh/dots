@@ -9,20 +9,19 @@ import (
 	_ "image/png"
 	"os"
 
-	"github.com/imjasonh/dots/braille"
-	"golang.org/x/term"
+	"github.com/imjasonh/dots"
 )
 
 func main() {
 	var (
-		width     = flag.Int("width", 0, "Output width in characters (default: terminal width)")
-		height    = flag.Int("height", 0, "Output height in characters (default: terminal height)")
-		w         = flag.Int("w", 0, "Short form of -width")
-		h         = flag.Int("h", 0, "Short form of -height")
-		noColor   = flag.Bool("no-color", false, "Disable ANSI colors")
-		threshold = flag.Int("threshold", 20, "Brightness threshold (0-255)")
-		t         = flag.Int("t", 0, "Short form of -threshold")
-		dither    = flag.Bool("dither", false, "Enable Floyd-Steinberg dithering")
+		width      = flag.Int("width", 0, "Output width in characters (default: terminal width)")
+		height     = flag.Int("height", 0, "Output height in characters (default: terminal height)")
+		w          = flag.Int("w", 0, "Short form of -width")
+		h          = flag.Int("h", 0, "Short form of -height")
+		noColor    = flag.Bool("no-color", false, "Disable ANSI colors")
+		background = flag.String("background", "", "Background color as hex (e.g., 'ff0000' for red, enables ANSI background)")
+		threshold  = flag.Int("threshold", 20, "Brightness threshold (0-255)")
+		t          = flag.Int("t", 0, "Short form of -threshold")
 	)
 
 	flag.Parse()
@@ -66,39 +65,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Get terminal dimensions for use as max constraints
-	fd := int(os.Stdout.Fd())
-	termWidth, termHeight, err := term.GetSize(fd)
-	if err != nil {
-		// Default to reasonable values if terminal size can't be determined
-		termWidth, termHeight = 80, 24
+	// Parse background color if provided
+	var bgColor *uint8
+	if *background != "" {
+		ansiColor, err := dots.ParseHex(*background)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid background color: %v\n", err)
+			os.Exit(1)
+		}
+		bgColor = &ansiColor
 	}
 
-	// Calculate dimensions based on what was specified
-	bounds := img.Bounds()
-	imgWidth := bounds.Dx()
-	imgHeight := bounds.Dy()
-
-	*width, *height = braille.CalculateDimensions(imgWidth, imgHeight, *width, *height, termWidth, termHeight)
-
-	// Fallback if still zero (shouldn't happen with terminal dimensions)
-	if *width == 0 {
-		*width = termWidth
-	}
-	if *height == 0 {
-		*height = termHeight
-	}
-
-	// Convert to braille
-	opts := braille.Options{
-		Width:     *width,
-		Height:    *height,
-		Threshold: uint8(*threshold),
-		Dither:    *dither,
-		Color:     !*noColor,
-	}
-
-	lines := braille.Convert(img, opts)
+	// Convert to dots
+	lines := dots.Convert(img, dots.Options{
+		Width:           *width,
+		Height:          *height,
+		Threshold:       uint8(*threshold),
+		NoColor:         *noColor,
+		BackgroundColor: bgColor,
+	})
 
 	// Print output
 	for _, line := range lines {

@@ -1,4 +1,4 @@
-package braille
+package dots
 
 import (
 	"image"
@@ -189,7 +189,7 @@ func TestConvert(t *testing.T) {
 		{
 			desc:    "white image produces all-dots braille",
 			imgPath: "testdata/white.png",
-			opts:    Options{Width: 4, Height: 4, Threshold: 128},
+			opts:    Options{Width: 4, Height: 4, Threshold: 128, NoColor: true},
 			validate: func(t *testing.T, lines []string) {
 				if len(lines) != 4 {
 					t.Errorf("got %d lines, want 4", len(lines))
@@ -211,7 +211,7 @@ func TestConvert(t *testing.T) {
 		{
 			desc:    "black image produces empty braille",
 			imgPath: "testdata/black.png",
-			opts:    Options{Width: 4, Height: 4, Threshold: 128},
+			opts:    Options{Width: 4, Height: 4, Threshold: 128, NoColor: true},
 			validate: func(t *testing.T, lines []string) {
 				if len(lines) != 4 {
 					t.Errorf("got %d lines, want 4", len(lines))
@@ -233,7 +233,7 @@ func TestConvert(t *testing.T) {
 		{
 			desc:    "checkerboard produces varied braille",
 			imgPath: "testdata/checkerboard.png",
-			opts:    Options{Width: 4, Height: 4, Threshold: 128},
+			opts:    Options{Width: 4, Height: 4, Threshold: 128, NoColor: true},
 			validate: func(t *testing.T, lines []string) {
 				if len(lines) != 4 {
 					t.Errorf("got %d lines, want 4", len(lines))

@@ -1,20 +1,35 @@
-package braille
+package dots
 
 import (
 	"fmt"
 	"image"
 	"image/color"
+	"os"
 
 	"golang.org/x/image/draw"
+	"golang.org/x/term"
 )
+
+// getTerminalSize returns the current terminal dimensions.
+// Returns 80x24 as fallback if terminal size cannot be determined.
+func getTerminalSize() (int, int) {
+	// Try to get terminal size from stdout
+	if fd := int(os.Stdout.Fd()); term.IsTerminal(fd) {
+		if width, height, err := term.GetSize(fd); err == nil {
+			return width, height
+		}
+	}
+	// Fallback to reasonable defaults
+	return 80, 24
+}
 
 // Options configures the braille conversion.
 type Options struct {
-	Width     int   // Width in braille characters
-	Height    int   // Height in braille characters
-	Threshold uint8 // Brightness threshold (0-255), default 20
-	Dither    bool  // Enable Floyd-Steinberg dithering
-	Color     bool  // Enable ANSI color output
+	Width           int    // Width in braille characters
+	Height          int    // Height in braille characters
+	Threshold       uint8  // Brightness threshold (0-255), default 20
+	NoColor         bool   // Disable ANSI color output
+	BackgroundColor *uint8 // Background color for ANSI output (nil = no background)
 }
 
 // CalculateDimensions calculates output dimensions maintaining aspect ratio.
@@ -85,16 +100,32 @@ func Convert(img image.Image, opts Options) []string {
 		opts.Threshold = 20
 	}
 
+	// Respect NO_COLOR environment variable
+	if os.Getenv("NO_COLOR") != "" {
+		opts.NoColor = true
+	}
+
+	// Calculate dimensions if not both specified
+	if opts.Width == 0 || opts.Height == 0 {
+		bounds := img.Bounds()
+		imgWidth := bounds.Dx()
+		imgHeight := bounds.Dy()
+
+		// Get terminal dimensions as constraints
+		termWidth, termHeight := getTerminalSize()
+
+		// CalculateDimensions handles all cases:
+		// - Both zero: uses terminal as constraint with aspect ratio
+		// - Only width: calculates height from aspect
+		// - Only height: calculates width from aspect
+		opts.Width, opts.Height = CalculateDimensions(imgWidth, imgHeight, opts.Width, opts.Height, termWidth, termHeight)
+	}
+
 	// Step 1: Spatial quantization - resize to target dimensions
 	// Each braille char is 2 pixels wide × 4 pixels tall
 	targetWidth := opts.Width * 2
 	targetHeight := opts.Height * 4
 	resized := resize(img, targetWidth, targetHeight)
-
-	// Apply dithering if requested
-	if opts.Dither {
-		resized = applyDithering(resized, opts.Threshold)
-	}
 
 	// Step 2 & 3: Brightness and color quantization
 	lines := make([]string, opts.Height)
@@ -109,10 +140,14 @@ func Convert(img image.Image, opts Options) []string {
 			// Brightness quantization: convert to braille character
 			char := blockToBraille(block, opts.Threshold)
 
-			// Color quantization: get ANSI color code
-			if opts.Color {
-				colorCode := blockToANSI(block)
-				line += ansiColor(colorCode) + string(char) + ansiReset()
+			// Color quantization: get ANSI color codes
+			if !opts.NoColor {
+				fgColor := blockToANSI(block)
+				if opts.BackgroundColor != nil {
+					line += ansiFgBgColor(fgColor, *opts.BackgroundColor) + string(char) + ansiReset()
+				} else {
+					line += ansiFgColor(fgColor) + string(char) + ansiReset()
+				}
 			} else {
 				line += string(char)
 			}
@@ -199,81 +234,17 @@ func blockToANSI(block [8]color.Color) uint8 {
 	return quantizeRGB(r, g, b)
 }
 
-// ansiColor returns the ANSI escape sequence to set foreground color.
-func ansiColor(code uint8) string {
+// ansiFgColor returns the ANSI escape sequence to set foreground color.
+func ansiFgColor(code uint8) string {
 	return fmt.Sprintf("\x1b[38;5;%dm", code)
+}
+
+// ansiFgBgColor returns the ANSI escape sequence to set both foreground and background colors.
+func ansiFgBgColor(fgCode, bgCode uint8) string {
+	return fmt.Sprintf("\x1b[38;5;%d;48;5;%dm", fgCode, bgCode)
 }
 
 // ansiReset returns the ANSI escape sequence to reset colors.
 func ansiReset() string {
 	return "\x1b[0m"
-}
-
-// applyDithering applies Floyd-Steinberg dithering to an image.
-// This distributes quantization error to neighboring pixels for better gradient representation.
-func applyDithering(img *image.RGBA, threshold uint8) *image.RGBA {
-	bounds := img.Bounds()
-	result := image.NewRGBA(bounds)
-
-	// Copy image to result so we can modify it
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			result.Set(x, y, img.At(x, y))
-		}
-	}
-
-	// Floyd-Steinberg dithering
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			oldPixel := result.RGBAAt(x, y)
-
-			// Convert to grayscale
-			r, g, b := oldPixel.R, oldPixel.G, oldPixel.B
-			luminance := uint8(0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b))
-
-			// Quantize to black or white
-			var newPixel uint8
-			if luminance > threshold {
-				newPixel = 255
-			} else {
-				newPixel = 0
-			}
-
-			// Calculate quantization error
-			err := int(luminance) - int(newPixel)
-
-			// Set new pixel value
-			result.SetRGBA(x, y, color.RGBA{R: newPixel, G: newPixel, B: newPixel, A: 255})
-
-			// Distribute error to neighboring pixels (Floyd-Steinberg matrix)
-			// Pattern:     X   7/16
-			//         3/16 5/16 1/16
-			distributeError := func(dx, dy int, factor float64) {
-				nx, ny := x+dx, y+dy
-				if nx >= bounds.Min.X && nx < bounds.Max.X && ny >= bounds.Min.Y && ny < bounds.Max.Y {
-					oldColor := result.RGBAAt(nx, ny)
-					newValue := int(oldColor.R) + int(float64(err)*factor)
-					if newValue < 0 {
-						newValue = 0
-					}
-					if newValue > 255 {
-						newValue = 255
-					}
-					result.SetRGBA(nx, ny, color.RGBA{
-						R: uint8(newValue),
-						G: uint8(newValue),
-						B: uint8(newValue),
-						A: 255,
-					})
-				}
-			}
-
-			distributeError(1, 0, 7.0/16.0)
-			distributeError(-1, 1, 3.0/16.0)
-			distributeError(0, 1, 5.0/16.0)
-			distributeError(1, 1, 1.0/16.0)
-		}
-	}
-
-	return result
 }
