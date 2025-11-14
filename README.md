@@ -1,6 +1,14 @@
 # dots
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/imjasonh/dots.svg)](https://pkg.go.dev/github.com/imjasonh/dots)
+
 Convert images to braille art in the terminal with ANSI colors.
+
+```
+$ dots -w 40 testdata/rainbow_gradient.png
+```
+
+![dots](dots.png)
 
 ## Install
 
